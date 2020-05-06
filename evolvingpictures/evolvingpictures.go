@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"math/rand"
 	"time"
 	. "vlado/game/evolvingpictures/apt"
 
@@ -72,7 +73,7 @@ func pixelsToTexture(renderer *sdl.Renderer, pixels []byte, w, h int) *sdl.Textu
 }
 
 // APTToTexture does this
-func APTToTexture(node1, node2 Node, w, h int, renderer *sdl.Renderer) *sdl.Texture {
+func APTToTexture(node1, node2, node3 Node, w, h int, renderer *sdl.Renderer) *sdl.Texture {
 	// -1.0 and 1.0
 	scale := float32(255 / 2)
 	offset := float32(-1.0 * scale)
@@ -90,12 +91,14 @@ func APTToTexture(node1, node2 Node, w, h int, renderer *sdl.Renderer) *sdl.Text
 
 			c := node1.Eval(x, y)
 			c2 := node2.Eval(x, y)
+			c3 := node3.Eval(x, y)
 
 			// color := 360
 			green := c*scale - offset
 			red := c2*scale - offset
+			blue := c3*scale - offset
 
-			pixels[pixelIndex] = 0
+			pixels[pixelIndex] = byte(blue)
 			pixelIndex++
 			pixels[pixelIndex] = byte(green) // byte(c) // green plus
 			pixelIndex++
@@ -104,7 +107,7 @@ func APTToTexture(node1, node2 Node, w, h int, renderer *sdl.Renderer) *sdl.Text
 
 			pixelIndex++ // alpha
 
-			fmt.Println("x", x, "y", y, "c", c, "green color", c*scale-offset, "red color", c2*scale-offset)
+			// fmt.Println("x", x, "y", y, "c", c, "green color", c*scale-offset, "red color", c2*scale-offset)
 		}
 	}
 
@@ -146,7 +149,54 @@ func main() {
 	var elapsedTime float32
 	currentMouseState := getMouseState()
 
-	// tex := APTToTexture(plus, sine, winWidth, winHeight, renderer)
+	rand.Seed(time.Now().UTC().UnixNano())
+
+	aptR := GetRandomNode()
+	aptG := GetRandomNode()
+	aptB := GetRandomNode()
+
+	num := rand.Intn(20)
+	for i := 0; i < num; i++ {
+		aptR.AddRandom(GetRandomNode())
+	}
+
+	num = rand.Intn(20)
+	for i := 0; i < num; i++ {
+		aptG.AddRandom(GetRandomNode())
+	}
+
+	num = rand.Intn(20)
+	for i := 0; i < num; i++ {
+		aptB.AddRandom(GetRandomNode())
+	}
+
+	for {
+		_, nilCount := aptR.NodeCounts()
+		if nilCount == 0 {
+			break
+		}
+		aptR.AddRandom(GetRandomLeaf())
+	}
+	for {
+		_, nilCount := aptG.NodeCounts()
+		if nilCount == 0 {
+			break
+		}
+		aptG.AddRandom(GetRandomLeaf())
+	}
+	for {
+		_, nilCount := aptB.NodeCounts()
+		if nilCount == 0 {
+			break
+		}
+		aptB.AddRandom(GetRandomLeaf())
+	}
+
+	tex := APTToTexture(aptR, aptG, aptB, winWidth, winHeight, renderer)
+
+	fmt.Println("R: ", aptR)
+	fmt.Println("G: ", aptG)
+	fmt.Println("B: ", aptB)
 
 	for {
 		frameStart := time.Now()
@@ -169,7 +219,7 @@ func main() {
 			}
 		}
 
-		// renderer.Copy(tex, nil, nil)
+		renderer.Copy(tex, nil, nil)
 		renderer.Present()
 		/***** DRAW *****/
 
