@@ -9,7 +9,7 @@ import (
 	"github.com/veandco/go-sdl2/sdl"
 )
 
-const winWidth, winHeight, winDepth int = 800, 600, 100
+const winWidth, winHeight, winDepth int = 1200, 700, 100
 
 type pos struct {
 	x, y float32
@@ -49,6 +49,80 @@ type aColorKey struct {
 	src, dest, a int
 }
 
+type picture struct {
+	r Node
+	g Node
+	b Node
+}
+
+func (p *picture) String() string {
+	return "R" + p.r.String() + "\n" + "G" + p.g.String() + "\n" + "B" + p.b.String()
+}
+
+func newPicture() *picture {
+	p := &picture{}
+
+	p.r = GetRandomNode()
+	p.g = GetRandomNode()
+	p.b = GetRandomNode()
+
+	num := rand.Intn(4)
+	for i := 0; i < num; i++ {
+		p.r.AddRandom(GetRandomNode())
+	}
+
+	num = rand.Intn(4)
+	for i := 0; i < num; i++ {
+		p.g.AddRandom(GetRandomNode())
+	}
+
+	num = rand.Intn(4)
+	for i := 0; i < num; i++ {
+		p.b.AddRandom(GetRandomNode())
+	}
+	// Add Leaf Nodes
+	for p.r.AddLeaf(GetRandomLeaf()) {
+	}
+	for p.g.AddLeaf(GetRandomLeaf()) {
+	}
+	for p.b.AddLeaf(GetRandomLeaf()) {
+	}
+
+	return p
+}
+
+func (p *picture) mutate() {
+	r := rand.Intn(3) + 1
+	var nodeToMutate Node
+
+	switch r {
+	case 1:
+		nodeToMutate = p.r
+	case 2:
+		nodeToMutate = p.g
+	case 3:
+		nodeToMutate = p.b
+	default:
+		nodeToMutate = p.b
+	}
+
+	fmt.Println("random number is", r)
+
+	count := nodeToMutate.NodeCount()
+	r = rand.Intn(count)
+
+	nodeToMutate, count = GetNthNode(nodeToMutate, r, 0)
+
+	mutation := Mutate(nodeToMutate)
+	if nodeToMutate == p.r {
+		p.r = mutation
+	} else if nodeToMutate == p.g {
+		p.g = mutation
+	} else if nodeToMutate == p.b {
+		p.b = mutation
+	}
+}
+
 // setPixel will set the pixel inside the pixel byte slice, 4 bytes per pixel, 3 are currently used
 func setPixel(x, y int, c rgba, pixels []byte) error {
 	index := (y*int(winWidth) + x) * 4
@@ -73,7 +147,7 @@ func pixelsToTexture(renderer *sdl.Renderer, pixels []byte, w, h int) *sdl.Textu
 }
 
 // APTToTexture does this
-func APTToTexture(node1, node2, node3 Node, w, h int, renderer *sdl.Renderer) *sdl.Texture {
+func APTToTexture(pic *picture, w, h int, renderer *sdl.Renderer) *sdl.Texture {
 	// -1.0 and 1.0
 	scale := float32(255 / 2)
 	offset := float32(-1.0 * scale)
@@ -81,17 +155,15 @@ func APTToTexture(node1, node2, node3 Node, w, h int, renderer *sdl.Renderer) *s
 	pixels := make([]byte, w*h*4)
 	pixelIndex := 0
 
-	fmt.Println("scale", scale, "offset", offset)
-
 	for yi := 0; yi < h; yi++ {
 		y := float32(yi)/float32(h)*2 - 1
 
 		for xi := 0; xi < w; xi++ {
 			x := float32(xi)/float32(w)*2 - 1
 
-			c := node1.Eval(x, y)
-			c2 := node2.Eval(x, y)
-			c3 := node3.Eval(x, y)
+			c := pic.r.Eval(x, y)
+			c2 := pic.g.Eval(x, y)
+			c3 := pic.b.Eval(x, y)
 
 			// color := 360
 			green := c*scale - offset
@@ -148,56 +220,14 @@ func main() {
 
 	var elapsedTime float32
 	currentMouseState := getMouseState()
+	prevMouseState := currentMouseState
 
 	rand.Seed(time.Now().UTC().UnixNano())
 
-	aptR := GetRandomNode()
-	aptG := GetRandomNode()
-	aptB := GetRandomNode()
-
-	num := rand.Intn(20)
-	for i := 0; i < num; i++ {
-		aptR.AddRandom(GetRandomNode())
-	}
-
-	num = rand.Intn(20)
-	for i := 0; i < num; i++ {
-		aptG.AddRandom(GetRandomNode())
-	}
-
-	num = rand.Intn(20)
-	for i := 0; i < num; i++ {
-		aptB.AddRandom(GetRandomNode())
-	}
-
-	for {
-		_, nilCount := aptR.NodeCounts()
-		if nilCount == 0 {
-			break
-		}
-		aptR.AddRandom(GetRandomLeaf())
-	}
-	for {
-		_, nilCount := aptG.NodeCounts()
-		if nilCount == 0 {
-			break
-		}
-		aptG.AddRandom(GetRandomLeaf())
-	}
-	for {
-		_, nilCount := aptB.NodeCounts()
-		if nilCount == 0 {
-			break
-		}
-		aptB.AddRandom(GetRandomLeaf())
-	}
-
-	tex := APTToTexture(aptR, aptG, aptB, winWidth, winHeight, renderer)
-
-	fmt.Println("R: ", aptR)
-	fmt.Println("G: ", aptG)
-	fmt.Println("B: ", aptB)
-
+	pic := newPicture()
+	pic.mutate()
+	tex := APTToTexture(pic, winWidth, winHeight, renderer)
+	// fmt.Println(pic)
 	for {
 		frameStart := time.Now()
 		currentMouseState = getMouseState()
@@ -219,6 +249,11 @@ func main() {
 			}
 		}
 
+		if prevMouseState.leftButton && !currentMouseState.leftButton {
+			pic.mutate()
+			tex = APTToTexture(pic, winWidth, winHeight, renderer)
+		}
+
 		renderer.Copy(tex, nil, nil)
 		renderer.Present()
 		/***** DRAW *****/
@@ -228,5 +263,7 @@ func main() {
 			sdl.Delay(5 - uint32(elapsedTime))
 			elapsedTime = float32(time.Since(frameStart).Seconds() * 1000)
 		}
+
+		prevMouseState = currentMouseState
 	}
 }
